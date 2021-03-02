@@ -36,12 +36,14 @@
     class Animal
     {
         public $id;
+        public $name;
         public $min_production_amount;
         public $max_production_amount;
 
-        public function __construct($id, $min_production_amount, $max_production_amount)
+        public function __construct($id, $name, $min_production_amount, $max_production_amount)
         {
             $this->id = $id;
+            $this->name = $name;
             $this->min_production_amount = $min_production_amount;
             $this->max_production_amount = $max_production_amount;
         }
@@ -51,7 +53,7 @@
     {
         public function __construct($id)
         {
-            parent::__construct($id, 0, 1);
+            parent::__construct($id, "Курица", 0, 1);
         }
 
         public function getProduct()
@@ -64,7 +66,7 @@
     {
         public function __construct($id)
         {
-            parent::__construct($id, 8, 12);
+            parent::__construct($id, "Корова", 8, 12);
         }
 
         public function getProduct()
@@ -73,74 +75,125 @@
         }
     }
 
-    // Отвечает за сбор и суммарный подсчет продуктов
-    class ProductCollector
-    {
-        public $products = array();
-        public $animals = array();
-
-        public function __construct($animals)
-        {
-            $this->animals = $animals;
-        }
-
-        public function collect()
-        {
-            $current_product_type;
-
-            foreach ($this->animals as $animal)
-            {
-                $collected_products = $animal->getProduct();
-                $last_index = count($this->products) - 1;
-                if ($current_product_type != $collected_products->name)
-                {
-                    array_push($this->products, $collected_products);
-                    $current_product_type = $collected_products->name;
-                }
-                else
-                {
-                    $current_product = $this->products[$last_index];
-                    $current_product->count += $collected_products->count;
-                }
-            }
-
-            return $this->products;
-        }
-    }
-
     // Хлев с животными
     class Barn
     {
-        public $number_of_livestock = 0;
-        public $animals = array();
+        private $number_of_livestock;
+        private $animals;
+        private $product_storage;
 
         public function __construct()
         {
-            for ($i = 0; $i < 10; $i++)
-            {
-                $cow = new Cow(++$number_of_livestock);
-                array_push($this->animals, $cow);
-            }
-
-            for ($i = 0; $i < 20; $i++)
-            {
-                $chicken = new Chicken(++$number_of_livestock);
-                array_push($this->animals, $chicken);
-            }
+            $this->number_of_livestock = 0;
+            $this->animals = array();
+            $this->product_storage = array();
         }
 
-        // Получает информацию от сборщика продуктов и выводит на экран в виде таблицы
+        // Добавляет массив животных в хлев
+        public function addAnimal(array $animals)
+        {
+            foreach ($animals as $animal)
+            {
+                $animal->id = ++$number_of_livestock;
+            }
+
+            $this->animals = array_merge($this->animals, $animals);
+        }
+
+        // Выводит на экран информацию о собранных сегодня продуктах
         public function getDayInfo()
         {
-            $product_collector = new ProductCollector($this->animals);
-            $products = $product_collector->collect();
+            $products = $this->collect();
 
-            echo "<table><th colspan=\"2\">Сегодня собрано</th><tr><td>Тип продукта</td><td>Количество</td></tr>";
+            echo "<table><caption colspan=\"2\">За день собрано</caption><tr><th>Тип продукта</th><th>Количество</th></tr>";
             foreach ($products as $product)
+            {
+                echo "<tr><td>{$product->name}</td><td class=\"count\">x{$product->count}</td><tr>";
+                $this->product_storage = $this->mergeProducts($this->product_storage, $product);
+            }
+            echo "</table>";
+        }
+
+        // Выводит на экран информацию о количестве животных в хлеву
+        public function getAnimalsInfo()
+        {
+            echo "<table><caption colspan=\"2\">Животных в хлеву</caption><tr><th>Тип животного</th><th>Количество</th></tr>";
+            $animals = array();
+            $animals = $this->mergeAnimals($animals);
+
+            foreach ($animals as $animal_type => $animal_amount)
+            {
+                echo "<tr><td>{$animal_type}</td><td class=\"count\">x{$animal_amount}</td><tr>";
+            }
+            echo "</table>";
+        }
+
+        // Выводит на экран количество всех собранных продуктов
+        public function getStorageInfo()
+        {
+            echo "<table><caption colspan=\"2\">Всего собрано</caption><tr><th>Тип продукта</th><th>Количество</th></tr>";
+
+            foreach ($this->product_storage as $product)
             {
                 echo "<tr><td>{$product->name}</td><td class=\"count\">x{$product->count}</td><tr>";
             }
             echo "</table>";
+        }
+
+        // Собирает продукты с животных
+        private function collect()
+        {
+            $products = array();
+
+            foreach ($this->animals as $animal)
+            {
+                $collected_product = $animal->getProduct();
+
+                $products = $this->mergeProducts($products, $collected_product);
+            }
+
+            return $products;
+        }
+
+        // Объединяет продукты
+        private function mergeProducts(array $products, Product $collected_product)
+        {
+            // Для нахождения индекса повторяющегося продукта
+            $found_index = array_search($collected_product->name, array_map(function($p) {
+                return $p->name;
+            }, $products));
+
+            if ($found_index === false)
+            {
+                array_push($products, $collected_product);
+            }
+            else
+            {
+                $products[$found_index]->count += $collected_product->count;
+            }
+
+            return $products;
+        }
+
+        // Объединяет животных
+        private function mergeAnimals(array $animals)
+        {
+            foreach ($this->animals as $animal)
+            {
+                $animal_types = array_keys($animals);
+                $found_index = array_search($animal->name, $animal_types);
+
+                if ($found_index === false)
+                {
+                    $animals[$animal->name] = 1;
+                }
+                else
+                {
+                    ++$animals[$animal->name];
+                }
+            }
+
+            return $animals;
         }
     }
     
@@ -149,6 +202,7 @@
     <head>
     <style type=\"text/css\">
         table, th, tr, td {
+            padding: 5px 10px;
             border: 1px solid black;
             border-collapse: collapse;
         }
@@ -165,7 +219,32 @@
     </body>
     </html>";
 
+    function initialAnimals($cows_amount, $chickens_amount)
+    {
+        $initial_animals = array();
+        for ($i = 0; $i < $cows_amount; $i++)
+        {
+            $cow = new Cow(0);
+            array_push($initial_animals, $cow);
+        }
+    
+        for ($i = 0; $i < $chickens_amount; $i++)
+        {
+            $chicken = new Chicken(0);
+            array_push($initial_animals, $chicken);
+        }
+
+        return $initial_animals;
+    }
+
     $barn = new Barn();
 
+    $barn->addAnimal(initialAnimals(9, 18));
+    $barn->addAnimal([new Cow(0)]);
+    $barn->addAnimal([new Chicken(0), new Chicken(0)]);
+
+    $barn->getAnimalsInfo();
     $barn->getDayInfo();
+    $barn->getDayInfo();
+    $barn->getStorageInfo();
 ?>
